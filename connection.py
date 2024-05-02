@@ -61,6 +61,7 @@ def getProdutosComposicao(dataInicio, dataFim):
     produtosComposicao = receberDados(queryProdutosComposicao)
     return produtosComposicao
 
+
 def getPedidosMeioSemana(dataInicio, dataFim):
     queryPedidosMeioSemana = f"""
     select 
@@ -114,7 +115,8 @@ def getCompSemiAcabados(dataInicio, dataFim):
     P.IDX_LINHA as classificacao, 
     P2.PK_PRODUTO as idProdutoAcabado, 
     P2.DESCRICAO as nomeProdutoAcabado, 
-    P2.RENDIMENTO1 AS rendimento 
+    P2.RENDIMENTO1 AS rendimento, 
+    P.OPSUPRIMENTOMP
 FROM 
     TPAPRODCOMPOSICAO AS C
     INNER JOIN TPAPRODUTO AS P ON C.IDX_PRODUTO = P.PK_PRODUTO
@@ -124,7 +126,7 @@ WHERE
         SELECT 
             DISTINCT c.PK_PRODUTO
         FROM 
-            TPAPRODCOMPOSICAO as a 
+            TPAPRODCOMPOSICAO as a
             INNER JOIN TPAPRODUTO as c ON a.IDX_PRODUTO = c.PK_PRODUTO
             INNER JOIN TPAMOVTOPED as p ON a.RDX_PRODUTO = p.IDX_PRODUTO
             INNER JOIN TPADOCTOPED as e ON p.RDX_DOCTOPED = e.PK_DOCTOPED
@@ -135,6 +137,7 @@ WHERE
             AND c.OPSUPRIMENTOMP = 'S'
             AND (e.TPDOCTO = 'EC' OR e.TPDOCTO = 'OR') -- Verifica se TPDOCTO é 'EC' ou 'OR'
     )
+    AND P.OPSUPRIMENTOMP = 'S'
 ORDER BY 
     P.DESCRICAO;
     """
