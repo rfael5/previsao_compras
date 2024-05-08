@@ -38,6 +38,7 @@ def inserirCol_SemiAcabados(row, semiAcabados, incluirLinhaProducao):
             comp_semiacabados['nomeProdutoAcabado'] = p['nomeProdutoAcabado']
             comp_semiacabados['qtdProducao'] = row['totalProducao']
             comp_semiacabados['unidadeAcabado'] = row['unidade']
+            comp_semiacabados['precoUltimaCompra'] = p['precoUltimaCompra']
             comp_semiacabados['totalProducao'] = (p['qtdProdutoComposicao'] * row['totalProducao']) / p['rendimento']
             if comp_semiacabados != []:
                 listaComposicao.append(comp_semiacabados)
@@ -133,17 +134,13 @@ def unirListasComposicao(acabados, semiAcabados, incluirLinhaProducao):
     for p in semiAcabados:
         acabados.append(p)
     
-    # for x in acabados:
-    #     if 'Produtos Semi Acab.' in x['negocio']:
-    #         print(x)
-    
     #list(filter(lambda produto:produto['linha'] == tipoFiltro, listaCompleta))
     filtrar_semi_acabados = list(filter(lambda produto:'Produtos Semi Acab.' not in produto['negocio'], acabados))
     
     df = pd.DataFrame(filtrar_semi_acabados)   
 
-    result = df.groupby(['idProdutoComposicao', 'nomeProdutoComposicao', 'classificacao', 'unidade', 'estoque', 'unidadeEstoque'])[['totalProducao']].sum().reset_index()
-    result = result[['idProdutoComposicao', 'nomeProdutoComposicao', 'classificacao', 'estoque', 'unidadeEstoque', 'totalProducao', 'unidade']]
+    result = df.groupby(['idProdutoComposicao', 'nomeProdutoComposicao', 'classificacao', 'unidade', 'estoque', 'unidadeEstoque', 'precoUltimaCompra'])[['totalProducao']].sum().reset_index()
+    result = result[['idProdutoComposicao', 'nomeProdutoComposicao', 'classificacao', 'estoque', 'unidadeEstoque', 'totalProducao', 'unidade', 'precoUltimaCompra']]
     
     res = converterPJson(result)
     dadosOrdenados = sorted(res, key=lambda p:p['nomeProdutoComposicao'])
@@ -157,11 +154,11 @@ def somarProdutosEvento(produtosComposicao, incluirLinhaProducao):
     dfComposicao['unidade'] = dfComposicao['unidadeComposicao'].apply(alterarStringUnidade)
     dfComposicao['totalProducao'] = dfComposicao.apply(converterKg, axis=1)
     
-    result = dfComposicao.groupby(['idProdutoComposicao', 'nomeProdutoComposicao', 'negocio', 'classificacao', 'unidade', 'estoque', 'unidadeEstoque', 'produtoAcabado'])[['totalProducao']].sum().reset_index()
+    result = dfComposicao.groupby(['idProdutoComposicao', 'nomeProdutoComposicao', 'negocio', 'classificacao', 'unidade', 'estoque', 'unidadeEstoque', 'produtoAcabado', 'precoUltimaCompra'])[['totalProducao']].sum().reset_index()
 
     result['unidade'] = result['unidade'].apply(mudarUnidade)
     
-    result = result[['idProdutoComposicao', 'nomeProdutoComposicao', 'negocio', 'classificacao', 'estoque', 'unidadeEstoque', 'totalProducao', 'unidade', 'produtoAcabado']]
+    result = result[['idProdutoComposicao', 'nomeProdutoComposicao', 'negocio', 'classificacao', 'estoque', 'unidadeEstoque', 'totalProducao', 'unidade', 'produtoAcabado', 'precoUltimaCompra']]
     
     resultJson = result.to_json(orient='records')
     dadosDesserializados = json.loads(resultJson)
