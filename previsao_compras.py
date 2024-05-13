@@ -1,22 +1,18 @@
-from tkinter import filedialog
 import pandas as pd
 import numpy as np
 import json
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from tkinter import *
 from tkinter import ttk
 from tkcalendar import DateEntry
 from tkinter import messagebox
-from openpyxl import Workbook
-from openpyxl import load_workbook
-from openpyxl.styles import PatternFill
-from random import choice
 
 import connection
 import formatacao_objeto
 import tabelas
 import criacao_planilha
 
+#Retornam as datas para um formato legivel
 def formatarData(data):
     data_objeto = datetime.strptime(data, '%d/%m/%Y')
     data_formatada = data_objeto.strftime('%Y%m%d')
@@ -29,6 +25,8 @@ def formatarDataPedido(data):
     formatted_date = date_object.strftime('%d/%m/%Y')
     return formatted_date 
 
+#Pega a data inserida na interface, formata ela, e passa como parâmetro
+#na função que executa a query.
 def setarData():
     dataInicio = dtInicio.get()
     dtInicioFormatada = formatarData(dataInicio)
@@ -36,72 +34,39 @@ def setarData():
     dtFimFormatada = formatarData(dataFim)
     if dtInicioFormatada < dtFimFormatada:
         global ajustes_periodo
+        #Armazena nas variáveis abaixo a lista de produtos da composição de acabados, 
+        #de semi-acabados e de ajustes do periodo.
         produtosComposicao = connection.getProdutosComposicao(dtInicioFormatada, dtFimFormatada)
         composicaoSemiAcabados = connection.getCompSemiAcabados(dtInicioFormatada, dtFimFormatada)
         ajustes = connection.getAjustes(dtInicioFormatada, dtFimFormatada)
-        
+
         if len(produtosComposicao) == 0:
             tamanhoLista = 0
             tabelas.criarTabela(secondFrame)
             return tamanhoLista
         else:
+            #Retorna o saldo de estoque
             estoque = connection.getEstoque()
+            #Pega a quantidade de cada produto usado na receita final, e multiplica pelo
+            #número de pedidos dessa receita.
             produtosQtdAjustada = formatacao_objeto.calcularQtdProducao(produtosComposicao)
+            #Corrige esse valor com os ajustes feitos pelo cliente
             ajustesAplicados = formatacao_objeto.aplicarAjustes(produtosQtdAjustada, ajustes)
             ajustes_periodo = ajustesAplicados
-            # for x in ajustes_periodo:
-            #     print(x)
-            formatacao_objeto.adicionarEstoque(ajustesAplicados, estoque)
-            mp_acabados = formatacao_objeto.somarProdutosEvento(ajustesAplicados, incluirLinhaProducao)
-            mp_semiAcabados = criarDictSemiAcabados(mp_acabados, composicaoSemiAcabados, estoque)
-            produtos = formatacao_objeto.unirListasComposicao(mp_acabados, mp_semiAcabados, incluirLinhaProducao)
-            return produtos 
-    else:
-        tabelas.criarTabela(secondFrame)
-        return None
-    
-def setarDataAnoPassado():
-    dataInicio = dtInicio.get()
-    dtInicioFormatada = formatarData(dataInicio)
-    dataFim = dtFim.get()
-    dtFimFormatada = formatarData(dataFim)
-     
-    dataInicioFormatada = datetime.strptime(dataInicio, '%d/%m/%Y')  
-    dataInicio_ano_passado = dataInicioFormatada - timedelta(days=365)
-    
-    dataFimFormatada = datetime.strptime(dataFim, '%d/%m/%Y')  
-    data_fim_ano_passado = dataFimFormatada - timedelta(days=365)
 
-    
-    if dtInicioFormatada < dtFimFormatada:
-        global ajustes_periodo
-        produtosComposicao = connection.getProdutosComposicao(dataInicio_ano_passado, data_fim_ano_passado)
-        composicaoSemiAcabados = connection.getCompSemiAcabados(dataInicio_ano_passado, data_fim_ano_passado)
-        ajustes = connection.getAjustes(dataInicio_ano_passado, data_fim_ano_passado)
-        
-        if len(produtosComposicao) == 0:
-            tamanhoLista = 0
-            tabelas.criarTabela(secondFrame)
-            return tamanhoLista
-        else:
-            estoque = connection.getEstoque()
-            produtosQtdAjustada = formatacao_objeto.calcularQtdProducao(produtosComposicao)
-            ajustesAplicados = formatacao_objeto.aplicarAjustes(produtosQtdAjustada, ajustes)
-            ajustes_periodo = ajustesAplicados
-            # for x in ajustes_periodo:
-            #     print(x)
+            #insere na lista uma coluna com o saldo de estoque
             formatacao_objeto.adicionarEstoque(ajustesAplicados, estoque)
-            mp_acabados = formatacao_objeto.somarProdutosEvento(ajustesAplicados, incluirLinhaProducao)
+            #Soma todos os pedidos de cada produto, chegando ao valor total de pedidos para cada um
+            mp_acabados = formatacao_objeto.somarProdutosEvento(ajustesAplicados)
+            #Faz as operações acima com a lista de composição dos semi-acabados
             mp_semiAcabados = criarDictSemiAcabados(mp_acabados, composicaoSemiAcabados, estoque)
-            produtos = formatacao_objeto.unirListasComposicao(mp_acabados, mp_semiAcabados, incluirLinhaProducao)
+            #Une a lista dos acabados com os semi-acabados em uma só, e retorna a lista final
+            produtos = formatacao_objeto.unirListasComposicao(mp_acabados, mp_semiAcabados)
             return produtos 
     else:
         tabelas.criarTabela(secondFrame)
         return None
 
-# def checarEventosNaLista():
-#     for evento in tabelas.tabelaSemana.get_children():
-#         print(tabelas.tabelaSemana.item(evento))
 
 def formatarDataPedido(data):
     milliseconds_since_epoch = data
@@ -110,81 +75,32 @@ def formatarDataPedido(data):
     formatted_date = date_object.strftime('%d/%m/%Y')
     return formatted_date
 
-def verTodosEventos(lista_produtos, tabela):
-    indice = tabela.selection()
-    if indice:
-        produto = tabela.item(indice)['values'][0]
-        produtosFiltrados = list(filter(lambda evento:int(evento['idProdutoComposicao']) == int(produto), lista_produtos))
-        abrirOutraJanela(produtosFiltrados)
-
-def abrirOutraJanela(produtosFiltrados):
-    nova_janela = Toplevel(root)  # Cria uma nova janela
-    nova_janela.title("Nova Janela")
-    nova_janela.geometry("950x400")
-    produto_selecionado = produtosFiltrados[0]['nomeProdutoComposicao']
-    # Adicione widgets ou conteúdo à nova janela aqui
-    label = Label(nova_janela, text=f'{produto_selecionado}')
-    label.grid(padx=20, pady=20)
-
-    tabelas.criarTabelaEvento(nova_janela)
-    for x in produtosFiltrados:
-        cliente = x['nomeEvento']
-        produto = x['nomeProdutoAcabado']
-        dataPedido = formatarDataPedido(x['dataPedido'])
-        dataPrevisao = formatarDataPedido(x['dataPrevisao'])
-        qtdEvento = x['qtdProdutoEvento']
-        unidade = x['unidadeAcabado']
-        data = (cliente, produto, dataPedido, dataPrevisao, qtdEvento, unidade)
-        tabelas.tabelaEventos.insert(parent='', index=0, values=data)
-
-
-# def inserirTabelaTeste(tipo_requisicao):
-#     produtos_meio_semana = setarDataPedidosMeioSemana(tipo_requisicao)
-    
-#     if produtos_meio_semana == 0 or produtos_meio_semana == None:
-#         mensagem_banco.configure(text='Nenhum evento foi marcado hoje para essa semana')
-#         #messagebox.showinfo('Sem eventos', 'Nenhum evento nesse período')
-#     else:
-#         produtosOrdenados = sorted(produtos_meio_semana, key=lambda p:p['nomeProdutoComposicao'], reverse=True)
-#         qtd_eventos_tabela = len(tabelas.tabelaSemana.get_children())
-#         qtd_eventos_query = len(produtosOrdenados)
-#         if qtd_eventos_tabela != qtd_eventos_query:
-#             mensagem_banco.configure(text='Houve marcação de eventos hoje para essa semana.')
-#             #messagebox.showinfo('Novos eventos/encomendas', 'Novos pedidos foram feitos hoje para essa semana.')
-#             tabelas.tabelaSemana.delete(*tabelas.tabelaSemana.get_children())
-#             for p in produtosOrdenados:
-#                 id = p['idProdutoComposicao']
-#                 nome = p['nomeProdutoComposicao']
-#                 classificacao = p['classificacao']
-#                 estoque = p['estoque']
-#                 unidadeEstoque = p['unidadeEstoque']
-#                 totalProducao = p['totalProducao']
-#                 unidade = p['unidade']
-#                 data = (id, nome, classificacao, estoque, unidadeEstoque, totalProducao, unidade)
-#                 tabelas.tabelaSemana.insert(parent='', index=0, values=data)
-#         else:
-#             #messagebox.showinfo('Sem novos pedidos hoje', 'Nenhum pedido novo por enquanto.')
-#             return
 
 def formatarListaSemiAcabados(lista, estoque):
     formatacao_objeto.adicionarEstoque(lista, estoque)
+
     df = pd.DataFrame(lista)
     df['produtoAcabado'] = False
+    #Remove caracteres desnecessários que vem na string do nome do produto e da 
+    #unidade de medida do produto.
     df['unidade'] = df['unidadeComposicao'].apply(formatacao_objeto.alterarStringUnidade)
     df['nomeProdutoComposicao'] = df['nomeProdutoComposicao']. apply(formatacao_objeto.alterarStringUnidade)
     df['unidadeEstoque'] = df['unidadeEstoque'].apply(formatacao_objeto.alterarStringUnidade)
+    #Converte as quantidades dos produtos que estão em grama e ml para kg e litros.
     df['totalProducao'] = df.apply(formatacao_objeto.converterKg, axis=1)
     df['unidade'] = df['unidade'].apply(formatacao_objeto.mudarUnidade)
     
-    df = df[['idProdutoComposicao', 'nomeProdutoComposicao', 'negocio', 'classificacao', 'estoque', 'unidadeEstoque', 'totalProducao', 'unidade', 'produtoAcabado']]
-    
+    #Ordena os dados na ordem que devem aparecer na tabela.
+    df = df[['idProdutoComposicao', 'nomeProdutoComposicao', 'negocio', 'classificacao', 'IDX_CLASSIFICACAO', 'estoque', 'unidadeEstoque', 'totalProducao', 'unidade', 'produtoAcabado', 'precoUltimaCompra']]
     result = formatacao_objeto.converterPJson(df)
     return result
 
+#Cria um dicionario para inserir os dados da composição dos semi-acabados
+#no mesmo formato da composição dos acabados.
 def criarDictSemiAcabados(acabados, semiAcabados, estoque):
     dfAcabados = pd.DataFrame(acabados)
 
-    result = dfAcabados.apply(formatacao_objeto.inserirCol_SemiAcabados, semiAcabados=semiAcabados, incluirLinhaProducao=incluirLinhaProducao, axis=1)
+    result = dfAcabados.apply(formatacao_objeto.inserirCol_SemiAcabados, semiAcabados=semiAcabados, axis=1)
 
     resultJson = result.to_json(orient='records')
     dadosDesserializados = json.loads(resultJson)
@@ -195,52 +111,37 @@ def criarDictSemiAcabados(acabados, semiAcabados, estoque):
     listaFormatada = formatarListaSemiAcabados(listaJson, estoque)
     return listaFormatada
 
+#Insere os produtos na tabela na interface.
 def inserirNaLista():
-    produtos = setarData()
+    #Retorna os dados já formatados, sem filtro ou filtrados, para serem inseridos na lista.
+    produtos = selecionarOpcao(Event)
     
+    #Caso não tenha nenhum pedido no período selecionado ou o período seja inválido, a interface
+    #mostra uma mensagem de erro
     if produtos == None:
         messagebox.showinfo('Data inválida', 'Periodo selecionado inválido')
     elif produtos == 0:
         messagebox.showinfo('Lista vazia', 'Não há eventos nesse período de tempo')    
     else:
+        #Produtos são ordenados em ordem alfabetica
         produtosOrdenados = sorted(produtos, key=lambda p:p['nomeProdutoComposicao'], reverse=True)
         
+        #Sempre que o usuário faz uma nova pesquisa, a tabela é deletada e criada novamente.
         tabelas.table.delete(*tabelas.table.get_children())
         for p in produtosOrdenados:
             id = p['idProdutoComposicao']
             nome = p['nomeProdutoComposicao']
-            classificacao = p['classificacao']
+            linha = p['classificacao']
+            classificacao = p['IDX_CLASSIFICACAO']
             estoque = p['estoque']
             unidadeEstoque = p['unidadeEstoque']
             totalProducao = p['totalProducao']
             unidade = p['unidade']
-            data = (id, nome, classificacao, estoque, unidadeEstoque, totalProducao, unidade)
+            preco_ultima_compra = p['precoUltimaCompra']
+            data = (id, nome, linha, classificacao, estoque, unidadeEstoque, totalProducao, unidade, preco_ultima_compra)
             tabelas.table.insert(parent='', index=0, values=data)
-            
-            
-def inserirNaListaAnoPassado():
-    produtos = setarDataAnoPassado()
-    
-    if produtos == None:
-        messagebox.showinfo('Data inválida', 'Periodo selecionado inválido')
-    elif produtos == 0:
-        messagebox.showinfo('Lista vazia', 'Não há eventos nesse período de tempo')    
-    else:
-        produtosOrdenados = sorted(produtos, key=lambda p:p['nomeProdutoComposicao'], reverse=True)
-        
-        tabelas.tableAnoPassado.delete(*tabelas.tableAnoPassado.get_children())
-        for p in produtosOrdenados:
 
-            id = p['idProdutoComposicao']
-            nome = p['nomeProdutoComposicao']
-            classificacao = p['classificacao']
-            estoque = p['estoque']
-            unidadeEstoque = p['unidadeEstoque']
-            totalProducao = p['totalProducao']
-            unidade = p['unidade']
-            data = (id, nome, classificacao, estoque, unidadeEstoque, totalProducao, unidade)
-            tabelas.tableAnoPassado.insert(parent='', index=0, values=data)
-
+#Função para caso o usuário queira gerar uma planilha com todos os pedidos.
 def gerarPlanilha():
     produtos = setarData()
     if produtos == None:
@@ -248,14 +149,32 @@ def gerarPlanilha():
     elif produtos == 0:
         messagebox.showinfo('Lista vazia', 'Não há eventos nesse período de tempo') 
     else:
-        criacao_planilha.gerarArquivoExcel('COMPRAS', produtos, incluirLinhaProducao) 
+        criacao_planilha.gerarArquivoExcel('COMPRAS', produtos) 
 
-# def consultarAttBanco():
-#     #global hora_atual
-#     hora_atual = datetime.now()
-#     hora_ultima_checagem.configure(text=f'Momento da última checagem: {str(hora_atual)}')
-#     inserirTabelaTeste('timer')
-#     page2.after(10000, consultarAttBanco)
+#Função para o usuário filtrar a lista e visualizar os produtos
+#por linha de produção, caso queiram ver somente os pedidos para
+#receitas de sal, doce, confeitaria, etc.
+def filtrarListas(tipoFiltro, listaCompleta):
+    if listaCompleta == None:
+        return None
+    elif listaCompleta == 0:
+        return 0
+    else:
+        listaFiltrada = list(filter(lambda produto:produto['IDX_CLASSIFICACAO'] == tipoFiltro or tipoFiltro in produto['IDX_CLASSIFICACAO'], listaCompleta))
+        return listaFiltrada
+
+#Função que retorna a lista completa ou filtrada para ser inserida na tabela da interface.
+def selecionarOpcao(event):
+    todosProdutos = setarData()
+    valorSelecionado = combo.get()
+    if valorSelecionado == 'Todos os produtos':
+        return todosProdutos
+    else:
+        produtos_filtrados = filtrarListas(valorSelecionado, todosProdutos)
+        return produtos_filtrados
+
+
+#O código abaixo cria a interface que usamos para testar nosso script.
 
 
 #Tkinter
@@ -275,11 +194,9 @@ mainFrame.pack(fill=BOTH, expand=1)
 
 canvas = Canvas(mainFrame)
 canvas.pack(side=LEFT, fill=BOTH, expand=1)
-#canvas.grid(row=0, column=0, sticky=EW)
 
 scrollbar = ttk.Scrollbar(mainFrame, orient=VERTICAL, command=canvas.yview)
 scrollbar.pack(side=RIGHT, fill=Y)
-#scrollbar.grid(row=0, rowspan=10, column=1, sticky="ns")
 
 canvas.configure(yscrollcommand=scrollbar.set)
 canvas.bind('<Configure>', lambda e:canvas.configure(scrollregion=canvas.bbox("all")))
@@ -311,61 +228,71 @@ lbl_dtFim.grid(row=1, column=1, padx=(50, 0), pady=5, sticky="w")
 dtFim = DateEntry(secondFrame, font=('Arial', 12), width=22, height=20, background='darkblue', foreground='white', borderwidth=2, date_pattern='dd/mm/yyyy')
 dtFim.grid(row=2, column=1, padx=(50, 0), pady=5, sticky="w")
 
-btn_obter_data = Button(secondFrame, text="Mostrar lista", bg='#C0C0C0', font=("Arial", 16), 
-                        command=lambda: [inserirNaLista(), inserirNaListaAnoPassado()])
+btn_obter_data = Button(secondFrame, text="Mostrar lista", bg='#C0C0C0', font=("Arial", 16), command=inserirNaLista)
 btn_obter_data.grid(row=5, column=0, columnspan=2, padx=(80, 0), pady=2, sticky='nsew')
 
-#row 7 --> Tabela composição acabados
+opcoes = [
+    'Todos os produtos',
+    'Acessórios',
+    'Acompanhamento',
+    'Bebidas',
+    'Bolo',
+    'Buffet',
+    'Cafeteria',
+    'Carnes',
+    'Compras Diversas',
+    'Congelados',
+    'Conservas',
+    'Copos',
+    'Descartáveis',
+    'Diversos',
+    'Doces',
+    'Doces Terceirizados',
+    'embalagem',
+    'Equip.Segur/EPI/Unif',
+    'Frete',
+    'Frios',
+    'Frutas',
+    'Higiene / Limpeza',
+    'Hortifrutigranjeiros',
+    'Laticínios',
+    'Louças',
+    'Manutenção',
+    'Massa',
+    'Materiais',
+    'Material Escritorio',
+    'Mercearia',
+    'Mesa de Antepastos',
+    'Mesa de Guloseimas',
+    'Pães e Bolos',
+    'Patê',
+    'Peças Inox',
+    'Peixe',
+    'Pescados',
+    'Petiscos',
+    'Petiscos Frios',
+    'Produtos revenda',
+    'Recheios e Massas',
+    'Refrigerados',
+    'Salada',
+    'Sobremesa',
+    'Sobremesa Terceiriza',
+    'Sorveteria',
+    'Utensilios'
+]
+opcaoSelecionada = StringVar()
+opcaoSelecionada.set('Todos os produtos')
+combo = ttk.Combobox(secondFrame, values=opcoes, textvariable=opcaoSelecionada)
+combo.grid(row=4, padx=(160, 100), columnspan=2, sticky='nsew')
 
-# btn_mostrar_eventos = Button(secondFrame, text="Ver todos os eventos", bg='#C0C0C0', font=("Arial", 16), command= lambda:verTodosEventos(ajustes_periodo, tabelas.table))
-# btn_mostrar_eventos.grid(row=8)
+#row 7 --> Tabela composição acabados
 
 #row 10 --> Tabela composição semi-acabados
 
 btn_obter_data = Button(secondFrame, text="Gerar Planilhas Excel", bg='#C0C0C0', font=("Arial", 16), command=gerarPlanilha)
 btn_obter_data.grid(row=17, column=0, columnspan=2, padx=(80, 0), pady=(10, 30), sticky='nsew')
 
-
-####################################################
-#PÁGINA 2
-####################################################
-
-# page2 = Frame(notebook)
-# notebook.add(page2,text='Página 2')
-
-# lb1 = Label(page2, text='I am page 2')
-# lb1.grid(pady=20)
-
-# hora_ultima_checagem = Label(page2, text='', bg='#C0C0C0', font=("Arial", 16))
-# hora_ultima_checagem.grid(row=0, column=0)
-
-# mensagem_banco = Label(page2, text='', font=("Arial", 16))
-# mensagem_banco.grid(row=1, column=0)
-
-# dt_inicio_semana = Label(page2, text="De:", font=("Arial", 14))
-# dt_inicio_semana.grid(row=2, padx=(0, 190), column=0, sticky="e")
-
-# dt_inicio_semana = DateEntry(page2, font=('Arial', 12), width=22, height=20, background='darkblue', foreground='white', borderwidth=2, date_pattern='dd/mm/yyyy')
-# dt_inicio_semana.grid(row=3, column=0, padx=(150, 0), pady=5, sticky="e")
-
-# dt_fim_semana = Label(page2, text="Até:", font=("Arial", 14))
-# dt_fim_semana.grid(row=2, column=1, padx=(50, 0), pady=5, sticky="w")
-
-# dt_fim_semana = DateEntry(page2, font=('Arial', 12), width=22, height=20, background='darkblue', foreground='white', borderwidth=2, date_pattern='dd/mm/yyyy')
-# dt_fim_semana.grid(row=3, column=1, padx=(50, 0), pady=5, sticky="w")
-
-# btn_pedidos_semana = Button(page2, text="Ver pedidos meio semana", bg='#C0C0C0', font=("Arial", 16), command= lambda: inserirTabelaTeste('btn'))
-# btn_pedidos_semana.grid(row=4)
-# #verTodosEventos
-# btn_mostrar_eventos = Button(page2, text="Ver todos os eventos", bg='#C0C0C0', font=("Arial", 16), command= lambda:verTodosEventos(ajustes_meio_semana, tabelas.tabelaSemana))
-# btn_mostrar_eventos.grid(row=7)
-
-#tabelas.criarTabelaMeioSemana(page2)
 tabelas.criarTabela(secondFrame)
-
-tabelas.criarTabelaAnoPassado(secondFrame)
-
-#consultarAttBanco()
 
 root.mainloop()
 
