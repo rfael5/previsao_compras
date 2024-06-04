@@ -6,7 +6,7 @@ import json
 # conexao = (
 #     "mssql+pyodbc:///?odbc_connect=" + 
 #     "DRIVER={ODBC Driver 17 for SQL Server};" +
-#     "SERVER=localhost;" +
+#     "SERVER=192.168.1.137;" +
 #     "DATABASE=SOUTTOMAYOR;" +
 #     "UID=Sa;" +
 #     "PWD=P@ssw0rd2023"

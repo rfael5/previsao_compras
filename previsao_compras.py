@@ -38,6 +38,11 @@ def setarData():
         #de semi-acabados e de ajustes do periodo.
         produtosComposicao = connection.getProdutosComposicao(dtInicioFormatada, dtFimFormatada)
         composicaoSemiAcabados = connection.getCompSemiAcabados(dtInicioFormatada, dtFimFormatada)
+        
+        # for x in produtosComposicao:
+        #     if 'Arroz da Horta' in x['nomeProdutoAcabado']:
+        #         print(x)
+
         ajustes = connection.getAjustes(dtInicioFormatada, dtFimFormatada)
 
         if len(produtosComposicao) == 0:
@@ -47,19 +52,23 @@ def setarData():
         else:
             #Retorna o saldo de estoque
             estoque = connection.getEstoque()
+            
+            #Corrige esse valor com os ajustes feitos pelo cliente
+            ajustesAplicados = formatacao_objeto.aplicarAjustes(produtosComposicao, ajustes)
+            ajustes_periodo = ajustesAplicados
             #Pega a quantidade de cada produto usado na receita final, e multiplica pelo
             #número de pedidos dessa receita.
-            produtosQtdAjustada = formatacao_objeto.calcularQtdProducao(produtosComposicao)
-            #Corrige esse valor com os ajustes feitos pelo cliente
-            ajustesAplicados = formatacao_objeto.aplicarAjustes(produtosQtdAjustada, ajustes)
-            ajustes_periodo = ajustesAplicados
-
+            produtosQtdAjustada = formatacao_objeto.calcularQtdProducao(ajustesAplicados)
+            
             #insere na lista uma coluna com o saldo de estoque
-            formatacao_objeto.adicionarEstoque(ajustesAplicados, estoque)
+            formatacao_objeto.adicionarEstoque(produtosQtdAjustada, estoque)
+
             #Soma todos os pedidos de cada produto, chegando ao valor total de pedidos para cada um
-            mp_acabados = formatacao_objeto.somarProdutosEvento(ajustesAplicados)
+            mp_acabados = formatacao_objeto.somarProdutosEvento(produtosQtdAjustada)
+            
             #Faz as operações acima com a lista de composição dos semi-acabados
             mp_semiAcabados = criarDictSemiAcabados(mp_acabados, composicaoSemiAcabados, estoque)
+  
             #Une a lista dos acabados com os semi-acabados em uma só, e retorna a lista final
             produtos = formatacao_objeto.unirListasComposicao(mp_acabados, mp_semiAcabados)
             return produtos 

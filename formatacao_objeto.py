@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from sqlalchemy import create_engine
 import pandas as pd
 import json
@@ -15,7 +16,7 @@ def inserirCol_SemiAcabados(row, semiAcabados):
     listaComposicao = []
     listaOrdenada = sorted(semiAcabados, key=lambda p:p['nomeProdutoAcabado'])
     for p in listaOrdenada:
-        if int(p['idProdutoAcabado']) == int(row['idProdutoComposicao']):  
+        if int(p['idProdutoAcabado']) == int(row['idProdutoComposicao']): 
             comp_semiacabados = {}  
             comp_semiacabados['idProdutoComposicao'] = p['idProduto']
             comp_semiacabados['nomeProdutoComposicao'] = p['nomeProdutoComposicao']
@@ -145,23 +146,36 @@ def unirListasComposicao(acabados, semiAcabados):
     
     return dadosOrdenados
 
+def formatarDataPedido(data):
+    milliseconds_since_epoch = data
+    seconds_since_epoch = milliseconds_since_epoch / 1000
+    date_object = datetime.fromtimestamp(seconds_since_epoch, timezone.utc)
+    formatted_date = date_object.strftime('%d/%m/%Y')
+    return formatted_date 
+
 #Remove versões alteradas de uma receita e deixa somente uma receita original
 def removerReceitasAlteradas(lista_completa:list):
-    copia_lista = lista_completa
-    for p_copia in copia_lista:
-        for p_original in lista_completa:
-            if p_original['idProdutoAcabado'] == p_copia['idProdutoAcabado'] and p_original['DTINC'] > p_copia['DTINC']:
-                lista_completa.remove(p_original)
-            else:
-                return
-    return lista_completa
+    lista_remocao = []
+    nova_lista = []
+
+    for copia in lista_completa:
+        for prod in lista_completa:
+            if int(prod['idProdutoAcabado']) == int(copia['idProdutoAcabado']) and int(prod['idProdutoComposicao']) == int(prod['idProdutoComposicao']) and prod['DTINC'] > copia['DTINC']:
+                lista_remocao.append(prod)
+
+    # Criar uma nova lista excluindo os elementos a serem removidos
+    for p in lista_remocao:
+        if p in lista_completa:
+            lista_completa.remove(p)
+
+    return nova_lista
 
 #Função que soma a quantidade total de cada pedido
-def somarProdutosEvento(produtosComposicao):
+def somarProdutosEvento(_produtos):
     
-    removerReceitasAlteradas(produtosComposicao)
+    removerReceitasAlteradas(_produtos)
     
-    dfComposicao = pd.DataFrame(produtosComposicao)
+    dfComposicao = pd.DataFrame(_produtos)
     dfComposicao.drop_duplicates(inplace=True)
     dfComposicao['produtoAcabado'] = True
     dfComposicao['unidade'] = dfComposicao['unidadeComposicao'].apply(alterarStringUnidade)
