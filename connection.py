@@ -169,3 +169,46 @@ def getEstoque():
     """
     estoque = receberDados(queryEstoque)
     return estoque
+
+
+def getFornecedores():
+    query = """
+        SELECT PK_CADASTRO, CODCADASTRO, NOME, FANTASIA, CNPJCPF FROM TPACADASTRO WHERE FORNECEDOR = 'S'
+    """
+    
+    fornecedores = receberDados(query)
+    return fornecedores
+
+def getProdutosFornecedor(cnpj_cpf):
+    query = f"""
+        SELECT P.CODPRODUTO AS codProduto, 
+            M.DESCRICAO AS nomeProduto, 
+            M.DATA AS dataCompra, 
+            M.L_PRECOUNI AS precoUnitario,
+            queryMax.ultimaCompra,
+            queryMax.ultimoPreco,
+            queryMax.ultimoFornecedor
+        FROM TPADOCTOEST AS D 
+        INNER JOIN TPAMOVTOEST AS M ON D.PK_DOCTOEST = M.RDX_DOCTOEST
+        INNER JOIN TPAPRODUTO AS P ON M.IDX_PRODUTO = P.PK_PRODUTO
+        INNER JOIN (
+            SELECT IDX_PRODUTO, MAX(D.DATA) AS maxData FROM TPAMOVTOEST AS M
+                INNER JOIN TPADOCTOEST AS D ON M.RDX_DOCTOEST = D.PK_DOCTOEST
+                WHERE D.CNPJCPF = '{cnpj_cpf}' AND D.TPENTIDADE = 'F'
+            GROUP BY IDX_PRODUTO
+        ) AS subquery ON M.IDX_PRODUTO = subquery.IDX_PRODUTO AND M.DATA = subquery.maxData
+        INNER JOIN (
+            SELECT T1.IDX_PRODUTO, T1.DATA AS ultimaCompra, T1.L_PRECOUNI AS ultimoPreco, D.NOME as ultimoFornecedor
+                FROM TPAMOVTOEST T1 JOIN(
+                    SELECT IDX_PRODUTO, MAX(DATA) AS maiorData FROM TPAMOVTOEST
+                        WHERE OPERACAO = 'CP'
+                        GROUP BY IDX_PRODUTO
+                ) T2 ON T1.IDX_PRODUTO = T2.IDX_PRODUTO AND T1.DATA = T2.maiorData
+            INNER JOIN TPADOCTOEST AS D ON T1.RDX_DOCTOEST = D.PK_DOCTOEST
+        ) AS queryMax ON M.IDX_PRODUTO = queryMax.IDX_PRODUTO
+        WHERE D.CNPJCPF = '{cnpj_cpf}' AND D.TPENTIDADE = 'F'
+        ORDER BY M.DESCRICAO
+    """ 
+    
+    produtos = receberDados(query)
+    return produtos

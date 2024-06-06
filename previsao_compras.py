@@ -38,10 +38,6 @@ def setarData():
         #de semi-acabados e de ajustes do periodo.
         produtosComposicao = connection.getProdutosComposicao(dtInicioFormatada, dtFimFormatada)
         composicaoSemiAcabados = connection.getCompSemiAcabados(dtInicioFormatada, dtFimFormatada)
-        
-        # for x in produtosComposicao:
-        #     if 'Arroz da Horta' in x['nomeProdutoAcabado']:
-        #         print(x)
 
         ajustes = connection.getAjustes(dtInicioFormatada, dtFimFormatada)
 
@@ -75,14 +71,6 @@ def setarData():
     else:
         tabelas.criarTabela(secondFrame)
         return None
-
-
-def formatarDataPedido(data):
-    milliseconds_since_epoch = data
-    seconds_since_epoch = milliseconds_since_epoch / 1000
-    date_object = datetime.fromtimestamp(seconds_since_epoch, timezone.utc)
-    formatted_date = date_object.strftime('%d/%m/%Y')
-    return formatted_date
 
 
 def formatarListaSemiAcabados(lista, estoque):
@@ -138,7 +126,6 @@ def inserirNaLista():
         #Sempre que o usuário faz uma nova pesquisa, a tabela é deletada e criada novamente.
         tabelas.table.delete(*tabelas.table.get_children())
         for p in produtosOrdenados:
-            id = p['idProdutoComposicao']
             nome = p['nomeProdutoComposicao']
             linha = p['classificacao']
             classificacao = p['IDX_CLASSIFICACAO']
@@ -147,7 +134,7 @@ def inserirNaLista():
             totalProducao = p['totalProducao']
             unidade = p['unidade']
             preco_ultima_compra = p['precoUltimaCompra']
-            data = (id, nome, linha, classificacao, estoque, unidadeEstoque, totalProducao, unidade, preco_ultima_compra)
+            data = (nome, linha, classificacao, estoque, unidadeEstoque, totalProducao, unidade, preco_ultima_compra)
             tabelas.table.insert(parent='', index=0, values=data)
 
 #Função para caso o usuário queira gerar uma planilha com todos os pedidos.
@@ -182,9 +169,51 @@ def selecionarOpcao(event):
         produtos_filtrados = filtrarListas(valorSelecionado, todosProdutos)
         return produtos_filtrados
 
+#Filtra a lista de fornecedores de acordo com o nome digitado no input
+def filtrarListaFornecedores(event):
+    text = input_f.get()
+    f = tabelas.fornecedores
+    f_filtrados = list(filter(lambda fornecedor:text.lower() in fornecedor['NOME'].lower() or  text.lower() in fornecedor['FANTASIA'].lower(), f))
+    tabelas.tbl_fornecedores.delete(*tabelas.tbl_fornecedores.get_children())
+    for x in f_filtrados:
+        id = x['PK_CADASTRO']
+        nome = x['NOME']
+        fantasia = x['FANTASIA']
+        cpf_cnpj = x['CNPJCPF']
+        data = (id, nome, fantasia, cpf_cnpj)
+        tabelas.tbl_fornecedores.insert(parent='', index=0, values=data)
+
+#Busca no banco de dados todos os produtos comprados com o fornecedor
+#selecionado.
+def verPedidosFornecedor():
+    selecionado = tabelas.dados_fornecedor
+    compras_fornecedor = connection.getProdutosFornecedor(selecionado['cnpjcpf'])
+    abrirJanelaFornecedor(selecionado['nome'], compras_fornecedor)
+
+
+#Abre uma janela com a lista dos produtos do fornecedor.
+def abrirJanelaFornecedor(nome_fornecedor, lista_produtos):
+    nova_janela = Toplevel(root)
+    nova_janela.title("Produtos do fornecedor")
+    nova_janela.geometry("950x400")
+    
+    label = Label(nova_janela, text=f'{nome_fornecedor}')
+    label.grid(row=0, padx=20, pady=20)
+    
+    tabelas.tabelaProdutosFornecedor(nova_janela)
+    for x in lista_produtos:
+        cod_produto = x['codProduto']
+        produto = x['nomeProduto']
+        data_compra = formatarDataPedido(x['dataCompra'])
+        preco = x['precoUnitario']
+        ultima_compra = formatarDataPedido(x['ultimaCompra'])
+        ultimo_preco = x['ultimoPreco']
+        ultimo_fornecedor = x['ultimoFornecedor']
+        data = (cod_produto, produto, data_compra, preco, ultima_compra, ultimo_preco, ultimo_fornecedor)
+        tabelas.tbl_produtos_fornecedor.insert(parent='', index=0, values=data)
+
 
 #O código abaixo cria a interface que usamos para testar nosso script.
-
 
 #Tkinter
 root = Tk()
@@ -196,7 +225,7 @@ notebook = ttk.Notebook(root)
 notebook.pack(fill=BOTH, expand=True)
 
 page1 = Frame(notebook)
-notebook.add(page1, text='Página 1')
+notebook.add(page1, text='Previsão de compras')
 
 mainFrame = Frame(page1)
 mainFrame.pack(fill=BOTH, expand=1)
@@ -207,7 +236,11 @@ canvas.pack(side=LEFT, fill=BOTH, expand=1)
 scrollbar = ttk.Scrollbar(mainFrame, orient=VERTICAL, command=canvas.yview)
 scrollbar.pack(side=RIGHT, fill=Y)
 
+h_scrollbar = ttk.Scrollbar(mainFrame, orient=HORIZONTAL, command=canvas.xview)
+h_scrollbar.pack(side=BOTTOM, fill=X)
+
 canvas.configure(yscrollcommand=scrollbar.set)
+canvas.configure(xscrollcommand=h_scrollbar.set)
 canvas.bind('<Configure>', lambda e:canvas.configure(scrollregion=canvas.bbox("all")))
 
 secondFrame = Frame(canvas)
@@ -298,10 +331,42 @@ combo.grid(row=4, padx=(160, 100), columnspan=2, sticky='nsew')
 
 #row 10 --> Tabela composição semi-acabados
 
-btn_obter_data = Button(secondFrame, text="Gerar Planilhas Excel", bg='#C0C0C0', font=("Arial", 16), command=gerarPlanilha)
-btn_obter_data.grid(row=17, column=0, columnspan=2, padx=(80, 0), pady=(10, 30), sticky='nsew')
+btn_gerar_planilha = Button(secondFrame, text="Gerar Planilhas Excel", bg='#C0C0C0', font=("Arial", 16), command=gerarPlanilha)
+btn_gerar_planilha.grid(row=17, column=0, columnspan=2, padx=(80, 0), pady=(10, 30), sticky='nsew')
+
+
+###################################################
+#PÁGINA 2
+###################################################
+page2 = Frame(notebook)
+notebook.add(page2, text='Consultar compras por fornecedor')
+
+explicacao = Label(page2, text="Selecione o fornecedor", font=("Arial", 14))
+explicacao.grid(row=0, columnspan=2, padx=(150, 0), pady=10, sticky="nsew")
+
+lista_fornecedores = [
+   'Fornecedor 1', 'Fornecedor 2', 'Fornecedor 3'
+]
+fornecedor_selecionado = StringVar()
+fornecedor_selecionado.set('Fornecedor 1')
+filtro_f = ttk.Combobox(page2, values=lista_fornecedores, textvariable=fornecedor_selecionado)
+filtro_f.grid(row=1, padx=(160, 100), columnspan=2, sticky='nsew')
+
+btn_buscar_produtos = Button(page2, text="Ver produtos", bg='#C0C0C0', font=("Arial", 16))
+btn_buscar_produtos.grid(row=2, column=0, columnspan=2, padx=(80, 0), pady=(10, 30), sticky='nsew')
+
+f_var = ''
+input_f = Entry(page2, textvariable = f_var, bd=4)
+input_f.grid(row=3, column=0, columnspan=2, padx=(80, 0), pady=(10, 30), sticky='nsew')
+input_f.bind("<KeyRelease>", filtrarListaFornecedores)
+
+#Row 4 - Tabela fornecedores
+
+btn_p_f = Button(page2, text="Ver produtos", bg='#C0C0C0', font=("Arial", 16), command=verPedidosFornecedor)
+btn_p_f.grid(row=5, column=0, columnspan=2, padx=(80, 0), pady=(10, 30), sticky='nsew')
 
 tabelas.criarTabela(secondFrame)
+tabelas.tabelaFornecedores(page2)
 
 root.mainloop()
 
